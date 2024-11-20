@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 from dotenv import load_dotenv
-from flask import Flask, jsonify
+from flask import Flask, request, jsonify
 import pymongo
 from pymongo.synchronous.database import Database
 
@@ -43,13 +43,42 @@ def get_item(collection, identifier: str):
         item['_id'] = str(item['_id'])
         my_json.append(item)
 
-    return jsonify(my_json), 200
+    return jsonify(my_json[0]), 200
 
 
 @app.route("/get-player/<player_id>")
 def get_users(player_id):
     players_collection = database["quiz_player_stats"]
     return get_item(players_collection, player_id)
+
+
+@app.route("/update-level/<player_id>", methods=["PUT"])
+def update_level(player_id):
+    try:
+        players_collection = database["quiz_player_stats"]
+        id_query = {"_id": player_id}
+
+        request_body = request.get_json()
+        new_level = request_body.get("level")
+
+        if not new_level:
+            return jsonify({"error": "Invalid input: 'level' is required"}), 400
+
+        # Update the player's level
+        update_result = players_collection.update_one(
+            id_query,
+            {"$set": {"level": new_level}}
+        )
+
+        if update_result.modified_count == 0:
+            return jsonify({"error": "Invalid input: 'level' is same as before"}), 400
+
+        return jsonify({"message": f"Player {player_id} level updated to {new_level}"}), 200
+
+    except Exception as error:
+        # Handling exceptions and printing an error message if data insertion fails
+        print(f"Error: {error}")
+        return jsonify({"error": "An error occurred while updating the level"}), 500
 
 
 if __name__ == '__main__':
