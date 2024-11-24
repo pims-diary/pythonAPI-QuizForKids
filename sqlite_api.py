@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import sqlite3
+from pymongo_api import create_player_record
 
 sqlite_api = Blueprint('sqlite_api', __name__, url_prefix='/sqlite')
 
@@ -59,33 +60,30 @@ def register():
     )
     conn.commit()
     conn.close()
+
+    # Create record in MongoDB
+    mongo_response = create_player_record(next_id, name, email)
+    if mongo_response[1] != 201:  # If MongoDB insertion fails
+        delete_player(next_id)
+        return jsonify({"error": "MongoDB sync failed"}), 500
+
     return jsonify({"PlayerId": next_id, "message": "User registered successfully"}), 201
 
 
-# 3. Check User Exists Endpoint
-@sqlite_api.route('/check_user', methods=['POST'])
-def check_user():
-    data = request.json
-    email = data.get('Email')
+def delete_player(player_id):
     conn = get_db_connection()
-    user = conn.execute(
-        'SELECT * FROM Players WHERE Email = ?',
-        (email,)
+    # Check if user exists
+    existing_user = conn.execute(
+        'SELECT * FROM Players WHERE PlayerId = ?',
+        (player_id)
     ).fetchone()
+    if existing_user:
+        conn.execute(
+            'DELETE FROM Players WHERE PlayerId = ?;',
+            (player_id)
+        )
+
+    conn.commit()
     conn.close()
-    if user:
-        return jsonify(dict(user)), 200
-    return jsonify({"error": "User does not exist"}), 404
 
 
-# 4. Get Last PlayerId Endpoint
-@sqlite_api.route('/last_player_id', methods=['GET'])
-def last_player_id():
-    conn = get_db_connection()
-    last_id = conn.execute(
-        'SELECT PlayerId FROM Players ORDER BY PlayerId DESC LIMIT 1'
-    ).fetchone()
-    conn.close()
-    if last_id:
-        return jsonify({"LastPlayerId": last_id['PlayerId']}), 200
-    return jsonify({"LastPlayerId": "10000"}), 200  # Default if no players exist
