@@ -67,3 +67,20 @@ def update_level(player_id):
     except Exception as error:
         print(f"Error: {error}")
         return jsonify({"error": "An error occurred while updating the level"}), 500
+
+
+# Function to create a record in MongoDB
+def create_player_record(player_id: str, email: str, name: str):
+    try:
+        players_collection = database["quiz_player_stats"]
+        new_player = {
+            "_id": player_id,
+            "email": name,
+            "username": email,
+            "level": "1"  # Default level for a new player
+        }
+        players_collection.insert_one(new_player)
+        return {"message": "Player record created in MongoDB", "player": new_player}, 201
+    except Exception as error:
+        print(f"Error creating player record in MongoDB: {error}")
+        return {"error": "Failed to create player record in MongoDB"}, 500
